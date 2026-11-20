@@ -26,6 +26,12 @@ class RobotError(RuntimeError):
     pass
 
 
+def quat_to_yaw(q) -> float:
+    """四元数 [w, x, y, z]（宇树 IMUState 的顺序）-> 偏航角（弧度）。"""
+    w, x, y, z = (float(v) for v in q)
+    return math.atan2(2.0 * (w * z + x * y), 1.0 - 2.0 * (y * y + z * z))
+
+
 class RobotBase:
     """位姿 pose() 返回 {"x","y","yaw","mode","age"}，age 是距上次更新的秒数；没有数据返回 None。"""
 
@@ -71,8 +77,9 @@ class RealRobot(RobotBase):
 
     # ---- 状态 ----
     def _on_state(self, msg):
+        # 注意：A2 的 imu_state.rpy 实测恒为 0（未填充），yaw 必须从四元数 [w,x,y,z] 计算
         p = {"x": float(msg.position[0]), "y": float(msg.position[1]),
-             "yaw": float(msg.imu_state.rpy[2]), "mode": int(msg.mode)}
+             "yaw": quat_to_yaw(msg.imu_state.quaternion), "mode": int(msg.mode)}
         with self._state_lock:
             self._pose, self._pose_t = p, time.monotonic()
 
