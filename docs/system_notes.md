@@ -24,10 +24,46 @@
                           └───────────────────┘
 ```
 
+### 网口对应关系（实测）
+
+| 机器 | 接口 | 硬件/驱动 | 地址 | 接到哪 |
+|---|---|---|---|---|
+| 服务器 | `enp2s0` | 板载 Realtek r8169（100M） | 10.5.2.39/24 | 实验室网（外网、跳板机） |
+| 服务器 | `enxec1ac314450f` | USB 千兆网卡 ASIX AX88179（cdc_ncm） | 192.168.124.222 + 192.168.123.222 | 网线 → 狗 → PC2 `net1` |
+| PC2 | `net1` | 板载 Intel I219-V（e1000e） | 192.168.124.162/24 | 狗的对外网口 → 服务器 |
+| PC2 | `eth0` | USB 千兆网卡 RTL8153（r8152） | 192.168.123.162/24 | 狗内部网络 → PC1 |
+| PC1 | – | – | 192.168.123.161 | 运控、相机 |
+
 要点：
-- **服务器只能直连 PC2，ping 不到 PC1**。所以 SDK 控制（DDS）必须跑在 PC2 上；服务器上的 `space_stand.py` 在当前接线下连不上运控。
-- 服务器的 `unitree-a2` 连接已设为自动连接（之前 autoconnect=否，插拔后 IP 会丢）。
-- PC2 账号 `unitree`。`~/lhm` 是我们的工作目录；`~/A2_Door_Opening`、`~/A2_Turn_Search_Bottle` 属于用户 `a2owner`，不要动。
+- **服务器只能直连 PC2（124 网段），ping 不到 PC1**。所以 SDK 控制（DDS）必须跑在 PC2 上；服务器上的 `space_stand.py` 在当前接线下连不上运控。
+- 服务器的 NetworkManager 连接 `unitree-a2`（绑 `enxec1ac314450f`，手动 IP，无网关）已设为**自动连接**（之前 autoconnect=否，插拔后 IP 会丢）。
+- PC2 的 `eth0`/`net1` 由 netplan 静态配置、自动连接。PC2 存有 WiFi 配置（`ceshi5G`、`TP-LINK_5G_5D2F`、`Unitree-3`），但**目前没有识别到无线网卡**。以后走别的网络时 brain 用 `--net/--host` 切换即可（见 README）。
+- PC2 **不能上外网**；系统时钟比服务器慢约 15 分钟（看日志时注意）。
+- 服务器 192.168.123.222 这个地址在当前接线下用不上（123 网段在 PC2 内侧），保留无害。
+- PC2 账号 `unitree`。`~/lhm` 是我们的工作目录（部署在 `~/lhm/A2-dog`）；`~/A2_Door_Opening`、`~/A2_Turn_Search_Bottle` 属于用户 `a2owner`，不要动。
+
+### 软件环境
+
+| | 服务器 | PC2 |
+|---|---|---|
+| 系统 | Ubuntu 22.04.5 | Ubuntu 22.04.4（实时内核），ROS2 Humble |
+| Python | conda 环境 `a2-dog`（3.10）：unitree_sdk2py、cyclonedds 0.10.2、numpy、cv2、openai、dashscope | 系统 python3.10：numpy、cyclonedds 0.10.2、cv2 4.5.4（**带 GStreamer**）、onnxruntime 1.16.3、websockets；unitree_sdk2py 随部署拷到 `~/lhm/A2-dog` |
+| 终端复用 | 有 `screen`，无 tmux | 都没有 |
+| 外网 | 有（阿里云、GitHub SSH 可用；GitHub HTTPS 不通） | 无 |
+
+## 1.1 PC2 算力
+
+| 项目 | 情况 |
+|---|---|
+| CPU | Intel i7-1355U：2 性能核 + 8 能效核，12 线程，最高 5.0GHz |
+| 功耗墙 | PL1 40W / PL2 50W（宇树调过，README 里 "TDP 40 50 16"），持续性能好于普通轻薄本 |
+| GPU | 仅核显 Iris Xe（`/dev/dri/renderD128`），可用 OpenVINO 加速，**目前未安装 OpenVINO** |
+| AI 加速卡 / 独显 / NPU | **都没有**（已核对全部 PCIe/USB 设备；`Signal processing controller a77d` 是平台遥测，不是 NPU） |
+| 内存 / 硬盘 | 30G（空闲约 28G）/ 468G NVMe（剩 378G） |
+| 当前负载 | CPU 约 95% 空闲；自带 SLAM 三个进程合计约 0.5 核。load average 显示 6~8 是实时内核线程频繁唤醒造成的（约 10 万次上下文切换/秒），不代表 CPU 忙 |
+
+能力估计（**未实测**）：720p H.264 软解约 5–10% 单核；YOLOv8n（onnxruntime CPU，640）约 15–25 FPS，OpenVINO 走核显有望 30–60 FPS；
+CLIP ViT-B/32 每张裁剪图约 30–60ms。阶段 3 的"YOLO 找人 + CLIP 匹配衣服"在 CPU 上够用；本地大模型不现实，继续用云端。
 
 ## 2. 相机（已实测可用）
 

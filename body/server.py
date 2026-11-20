@@ -14,6 +14,7 @@ import asyncio
 import hmac
 import logging
 import os
+import signal
 import time
 
 from common.protocol import DEFAULT_PORT, WATCHDOG_TIMEOUT, decode, encode
@@ -209,8 +210,16 @@ async def amain(args):
     if not token and args.host in ("0.0.0.0", "::"):
         log.warning("监听所有网卡且未设口令：同网段任何人都能连上来控制狗，建议设置 A2_TOKEN")
     asyncio.create_task(srv.watchdog())
-    async with server:
-        await server.serve_forever()
+    # SIGTERM（kill / systemd stop）默认会直接退出、不走清理，这里改成取消主任务，走到下面的 finally
+    asyncio.get_running_loop().add_signal_handler(signal.SIGTERM, asyncio.current_task().cancel)
+    try:
+        async with server:
+            await server.serve_forever()
+    finally:
+        # Ctrl-C / SIGTERM：退出前先停车
+        if srv.busy():
+            await srv.abort("body 退出")
+        robot.close()
 
 
 def main():
@@ -227,8 +236,8 @@ def main():
                         datefmt="%H:%M:%S")
     try:
         asyncio.run(amain(args))
-    except KeyboardInterrupt:
-        pass
+    except (KeyboardInterrupt, asyncio.CancelledError):  # Ctrl-C / SIGTERM，已在 amain 里停车
+        log.info("body 已退出")
 
 
 if __name__ == "__main__":
