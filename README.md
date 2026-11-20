@@ -2,7 +2,8 @@
 
 服务器（brain）听语音、调通义大模型规划动作；PC2（body）执行技能、驱动机器狗。
 详见 [docs/architecture.md](docs/architecture.md)，硬件/网络/接口调研见 [docs/system_notes.md](docs/system_notes.md)，
-**真机测试步骤（含接线组网）见 [docs/runbook_phase1.md](docs/runbook_phase1.md)**。
+**真机测试步骤（含接线组网）见 [docs/runbook_phase1.md](docs/runbook_phase1.md)**，
+已识别待评估的风险见 [docs/risks.md](docs/risks.md)（⚠ R1 本地算力不足，阶段 2 前必须评估）。
 
 ## 准备
 
