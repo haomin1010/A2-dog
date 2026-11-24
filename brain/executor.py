@@ -8,9 +8,12 @@ log = logging.getLogger("executor")
 
 
 class Executor:
-    def __init__(self, body):
+    def __init__(self, body, report=None, set_current=None):
         self.body = body
         self.task = None
+        # 可选：演示大屏的回调 report(kind, text) / set_current(text)
+        self.report = report or (lambda kind, text: None)
+        self.set_current = set_current or (lambda text: None)
 
     @property
     def running(self):
@@ -37,11 +40,19 @@ class Executor:
     async def _run(self, steps):
         n = len(steps)
         for i, (name, args) in enumerate(steps, 1):
-            print(f"  ▶ [{i}/{n}] {describe(name, args)}", flush=True)
+            desc = describe(name, args)
+            print(f"  ▶ [{i}/{n}] {desc}", flush=True)
+            self.report("say" if name == "speak" else "step", f"[{i}/{n}] {desc}")
+            self.set_current(f"[{i}/{n}] {desc}")
             ok, msg = await self.body.call(name, args)
             print(f"    {'✓' if ok else '✗'} {msg}", flush=True)
+            self.report("result" if ok else "error", msg)
             if not ok:
                 if i < n:
                     print(f"  ⚠ 第 {i} 步失败，后面 {n - i} 步不执行了", flush=True)
+                    self.report("error", f"第 {i} 步失败，后面 {n - i} 步不执行了")
+                self.set_current("")
                 return
         print("  ✔ 全部完成", flush=True)
+        self.report("result", "全部完成")
+        self.set_current("")

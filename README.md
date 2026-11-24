@@ -50,12 +50,28 @@ python -m brain.main
 
 连接地址是可选项，换网络不用改代码：
 
-- **brain**：`--net wired`（默认，USB 网卡直连 192.168.124.162）/ `--net local`（本机 mock）；
+- **brain**：`--net wired`（默认，USB 网卡直连 192.168.124.162）/ `--net local`（本机 mock）；默认 `--net dog`（192.168.123.162）；
   新网络在 `brain/config.py` 的 `NETWORKS` 里加一项，或者直接 `--host <PC2 地址>` / 环境变量 `A2_BODY_HOST`。
 - **body**：默认监听所有网卡（`0.0.0.0:8765`），可用 `--host` 或 `A2_BODY_BIND` 只绑某个网口。
 - **口令（可选，换到共享网络时建议开）**：PC2 和服务器都设置相同的 `A2_TOKEN`，口令不对的连接会被拒绝。
   服务器写进 `.env`；PC2 上 `A2_TOKEN=xxx tools/run_body.sh`。
 - **部署脚本**：`PC2=unitree@<地址> tools/deploy_pc2.sh`。
+
+## 演示大屏 / 视频（阶段二）
+
+```bash
+# 服务器：只看画面
+python -m brain.dashboard                       # 有线直连 123 网段：直接收相机组播
+python -m brain.dashboard --video relay         # 走 WiFi：先在 PC2 上运行 tools/video_relay.sh
+# 服务器：大模型控制 + 大屏（显示识别原话、规划步骤、执行结果）
+python -m brain.main --dashboard [--video relay]
+
+# 自己电脑上看：端口转发后浏览器打开 http://localhost:8080
+ssh -J jd_10002 -p 2222 -L 8080:localhost:8080 wanxi@localhost
+```
+
+- 截图建测试集：`python tools/capture_frames.py --every 2 --count 50`（存到 `data/frames/`，不进 git）。
+- 视觉接口 `brain/vision.py`：`look(图, 问题)` / `locate(图, 描述)`，A 线任务说明见 [docs/phase2_vision_task.md](docs/phase2_vision_task.md)。
 
 ## 配置（环境变量或 .env）
 
