@@ -141,7 +141,8 @@ class Skills:
         use_odom = start is not None
         prev_yaw = start["yaw"] if use_odom else 0.0
         t0 = time.monotonic()
-        timeout = target / c.turn_speed * 2.0 + 3.0
+        # 保险（见 docs/known_issues.md I1）：超时收紧，读数失效时也不会大幅过转
+        timeout = target / c.turn_speed * 1.3 + 1.0
         done = 0.0
         try:
             while True:
@@ -152,6 +153,12 @@ class Skills:
                         raise SkillError("里程计中断")
                     done += sign * _wrap(p["yaw"] - prev_yaw)
                     prev_yaw = p["yaw"]
+                    # 保险：已经发了 1.5 秒转向指令，朝向几乎没变 → 读数不可信，立即停
+                    if now - t0 > 1.5 and abs(done) < math.radians(3):
+                        raise SkillError("朝向读数不更新（转了 1.5 秒仍不到 3°），已停止")
+                    # 保险：转的方向和读数相反 → 符号错了，立即停
+                    if done < -math.radians(10):
+                        raise SkillError(f"朝向变化方向与指令相反（{math.degrees(done):.0f}°），已停止")
                 else:
                     done = c.turn_speed * (now - t0)
                 remaining = target - done

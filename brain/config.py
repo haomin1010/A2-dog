@@ -27,10 +27,11 @@ ASR_MODEL = os.environ.get("A2_ASR_MODEL", "qwen3-asr-flash")
 # 连 PC2 的网络配置：按名字选（--net / A2_NET），也可以用 --host / A2_BODY_HOST 直接指定地址覆盖。
 # 换网络时在这里加一项即可，例如 "wifi": "192.168.x.x"。
 NETWORKS = {
-    "wired": "192.168.124.162",   # 服务器 USB 网卡直连 PC2 的 net1
+    "dog": "192.168.123.162",     # 服务器在狗的 123 网段（有线直连或 WiFi A2-Lab），PC2 的 eth0
+    "wired124": "192.168.124.162",  # 旧接法：服务器 USB 网卡只通 PC2 的 net1
     "local": "127.0.0.1",         # 本机 mock 联调
 }
-DEFAULT_NET = os.environ.get("A2_NET", "wired")
+DEFAULT_NET = os.environ.get("A2_NET", "dog")
 BODY_HOST = os.environ.get("A2_BODY_HOST")                      # 设置了就优先用
 BODY_PORT = int(os.environ.get("A2_BODY_PORT", "8765"))
 BODY_TOKEN = os.environ.get("A2_TOKEN", "")                     # 可选：和 PC2 上的 A2_TOKEN 一致才能连

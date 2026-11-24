@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 在服务器上运行：把 body/ common/ tools/ 和 unitree_sdk2py 同步到 PC2（PC2 不能上外网，SDK 跟着代码一起拷）。
 #   tools/deploy_pc2.sh            # 会提示输入 PC2 密码
-# 环境变量：PC2（默认 unitree@192.168.124.162）、PC2_DIR（默认 lhm/A2-dog，相对 PC2 的 home）
+# 环境变量：PC2（默认 unitree@192.168.123.162）、PC2_DIR（默认 lhm/A2-dog，相对 PC2 的 home）
 set -euo pipefail
-PC2=${PC2:-unitree@192.168.124.162}
+PC2=${PC2:-unitree@192.168.123.162}
 PC2_DIR=${PC2_DIR:-lhm/A2-dog}
 cd "$(dirname "$0")/.."
 
