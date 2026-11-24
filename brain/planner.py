@@ -21,9 +21,11 @@ SYSTEM_PROMPT = """你是宇树 A2 四足机器狗的动作规划器。用户用
 6. "过来"理解为前进；"回去"理解为掉头后前进。
 7. 指令跟机器狗动作无关、听不懂、或不安全时，不要做任何动作，只调用 speak 工具简短回复（15 字以内），
    比如让它说"没听清，请再说一遍"。
-8. 目前还不会导航到某个地点、也看不到东西（比如"去门口""找人"），遇到这类要求调用 speak 工具
-   说明暂时做不到，比如说"我还不会去门口"。调用 speak 时 text 参数必须填写要说的话。
-9. 不要输出解释性文字，只调用工具。
+8. 能用 find 原地转圈找人或物体并对准它（例如"找一下穿红衣服的人"→ find(description="穿红衣服的人")），
+   但还不会走过去，也不会导航到某个地点（比如"去门口"）。用户要求走过去时，先 find，再用 speak 说明暂时还不会走过去；
+   要求去某个地点时，调用 speak 说明暂时做不到，比如"我还不会去门口"。调用 speak 时 text 参数必须填写要说的话。
+9. find 会自己播报"我找一下…""我看到…了"，不要再额外 speak 同样的话。
+10. 不要输出解释性文字，只调用工具。
 
 机器狗当前状态：{state}"""
 
@@ -56,8 +58,9 @@ class Planner:
             name = tc.function.name
             try:
                 raw = json.loads(tc.function.arguments or "{}")
-                if name == "speak" and not raw.get("text") and reply:  # 偶尔模型把话写在正文里
-                    raw["text"] = reply
+                if name == "speak" and not raw.get("text"):
+                    # qwen3.5-flash 偶尔不填 text：优先用正文里的话，否则用兜底回复，保证狗有反应
+                    raw["text"] = reply or "这个我暂时还做不到"
                 args = sanitize(name, raw)
             except (ValueError, json.JSONDecodeError) as e:
                 log.warning("丢弃无效调用 %s(%s): %s", name, tc.function.arguments, e)

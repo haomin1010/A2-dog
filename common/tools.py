@@ -63,6 +63,16 @@ TOOL_SPECS: List[Dict[str, Any]] = [
         },
     },
     {
+        "name": "find",
+        "description": "原地转圈寻找符合描述的目标（人或物体），找到后转身对准它并说一声。"
+                       "只原地转，不会走过去。description 用简短中文描述目标，例如\"穿红衣服的人\"\"椅子\"。",
+        "parameters": {
+            "type": "object",
+            "properties": {"description": {"type": "string", "description": "要找的目标，简短中文"}},
+            "required": ["description"],
+        },
+    },
+    {
         "name": "wait",
         "description": "原地等待若干秒。",
         "parameters": {
@@ -124,6 +134,8 @@ def describe(name: str, args: Dict[str, Any]) -> str:
         return f"{'左' if args['direction'] == 'left' else '右'}转 {args['angle_deg']:.0f}°"
     if name == "speak":
         return f"说「{args['text']}」"
+    if name == "find":
+        return f"寻找「{args['description']}」"
     if name == "wait":
         return f"等待 {args['seconds']:.1f} 秒"
     return {"stand_up": "站起来", "lie_down": "趴下", "stop": "停止"}.get(name, name)

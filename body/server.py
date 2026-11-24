@@ -152,6 +152,11 @@ class BodyServer:
                 elif t == "cancel":
                     await self.abort("brain 取消")
                     await self.send(writer, {"type": "ack", "of": "cancel"})
+                elif t == "say":
+                    # 自动播报：不占用工具执行位，不等结果（TtsMaker 本身立即返回）
+                    text = str(msg.get("text", "")).strip()[:30]
+                    if text:
+                        asyncio.create_task(self._say(text))
                 elif t == "damp":
                     await self.abort("急停")
                     try:
@@ -168,6 +173,12 @@ class BodyServer:
                 self.writer = None
                 await self.abort("连接断开")
             writer.close()
+
+    async def _say(self, text: str):
+        try:
+            await asyncio.to_thread(self.robot.speak, text)
+        except Exception as e:
+            log.warning("播报失败：%s", e)
 
     async def watchdog(self):
         while True:

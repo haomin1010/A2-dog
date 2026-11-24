@@ -101,6 +101,13 @@ class BodyClient:
         except asyncio.TimeoutError:
             log.warning("%s 没有收到确认", kind)
 
+    async def say(self, text: str):
+        """自动播报（不占用 body 的工具执行位，不等结果）。"""
+        try:
+            await self._send({"type": "say", "text": text})
+        except ConnectionError:
+            pass
+
     async def cancel(self):
         await self._acked("cancel")
 

@@ -10,6 +10,7 @@ brain -> body
     {"type": "call",   "id": 7, "tool": "move", "args": {...}}   执行一个工具（同一时刻只能有一个在执行）
     {"type": "cancel"}                                          取消正在执行的工具并停止运动
     {"type": "damp"}                                            急停：电机阻尼（狗会软倒）
+    {"type": "say", "text": "..."}                              自动播报：不占用工具执行位、不回结果（≤30 字）
     {"type": "ping"}                                            心跳，brain 每 HEARTBEAT_INTERVAL 秒发一次
 
 body -> brain

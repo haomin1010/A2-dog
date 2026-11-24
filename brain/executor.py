@@ -4,13 +4,16 @@ import logging
 
 from common.tools import describe
 
+from .behaviors import LOCAL_TOOLS
+
 log = logging.getLogger("executor")
 
 
 class Executor:
-    def __init__(self, body, report=None, set_current=None):
+    def __init__(self, body, report=None, set_current=None, behaviors=None):
         self.body = body
         self.task = None
+        self.behaviors = behaviors  # 可选：服务器端组合行为（find 等）
         # 可选：演示大屏的回调 report(kind, text) / set_current(text)
         self.report = report or (lambda kind, text: None)
         self.set_current = set_current or (lambda text: None)
@@ -44,13 +47,18 @@ class Executor:
             print(f"  ▶ [{i}/{n}] {desc}", flush=True)
             self.report("say" if name == "speak" else "step", f"[{i}/{n}] {desc}")
             self.set_current(f"[{i}/{n}] {desc}")
-            ok, msg = await self.body.call(name, args)
+            if self.behaviors is not None and name in LOCAL_TOOLS:
+                ok, msg = await self.behaviors.run(name, args)
+            else:
+                ok, msg = await self.body.call(name, args)
             print(f"    {'✓' if ok else '✗'} {msg}", flush=True)
             self.report("result" if ok else "error", msg)
             if not ok:
                 if i < n:
                     print(f"  ⚠ 第 {i} 步失败，后面 {n - i} 步不执行了", flush=True)
                     self.report("error", f"第 {i} 步失败，后面 {n - i} 步不执行了")
+                if self.behaviors is not None and msg != "被取消" and name != "find":  # find 自己会说
+                    await self.behaviors.announce(f"{desc}没成功")
                 self.set_current("")
                 return
         print("  ✔ 全部完成", flush=True)

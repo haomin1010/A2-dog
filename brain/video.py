@@ -5,7 +5,7 @@
     multicast  服务器在狗的 123 网段且是有线（组播不丢包）：在指定网卡上加入组播直接收
     relay      服务器走 WiFi（组播几乎全丢）：PC2 运行 tools/video_relay.sh，把组播转成单播发到服务器 RELAY_PORT
 
-两种方式都先由本模块的转发线程把 RTP 包转到 127.0.0.1:LOCAL_PORT，再交给 OpenCV（FFmpeg 后端）解码。
+两种方式都先由本模块的转发线程把 RTP 包转到 127.0.0.1 的一个空闲端口，再交给 OpenCV（FFmpeg 后端）解码。
 这样不依赖系统路由（服务器默认组播路由走实验室网卡）和 GStreamer 的 H.264 插件（服务器没装）。
 
     python -m brain.video --snap /tmp/a.jpg      # 抓一帧存图
@@ -25,17 +25,34 @@ log = logging.getLogger("video")
 MCAST_GROUP = "230.1.1.1"
 MCAST_PORT = 1720
 RELAY_PORT = 5600          # relay 模式：PC2 发到服务器的这个端口
-LOCAL_PORT = 5610          # 本机转给解码器的端口（FFmpeg 还会占用 +1 做 RTCP，不能和 RELAY_PORT 相邻）
-SDP_PATH = "/tmp/a2dog_video.sdp"
+LOCAL_PORT_RANGE = range(5610, 5700, 2)  # 本机转给解码器的端口（FFmpeg 还会占用 +1 做 RTCP）；自动选空闲的一对
 
-_SDP = f"""v=0
+_SDP = """v=0
 o=- 0 0 IN IP4 127.0.0.1
 s=A2 camera
 c=IN IP4 127.0.0.1
 t=0 0
-m=video {LOCAL_PORT} RTP/AVP 96
+m=video {port} RTP/AVP 96
 a=rtpmap:96 H264/90000
 """
+
+
+def _free_port_pair() -> int:
+    """找一对空闲的 UDP 端口 (p, p+1)，允许同一台机器上同时跑多个视频接收（例如测试人员和开发各一个）。"""
+    for p in LOCAL_PORT_RANGE:
+        socks = []
+        try:
+            for q in (p, p + 1):
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                socks.append(s)
+                s.bind(("127.0.0.1", q))
+            return p
+        except OSError:
+            continue
+        finally:
+            for s in socks:
+                s.close()
+    raise RuntimeError("找不到空闲的本地视频端口")
 
 
 class VideoSource:
@@ -50,6 +67,8 @@ class VideoSource:
         self.fps = 0.0
         self.packets = 0
         self._running = False
+        self.local_port = _free_port_pair()
+        self.sdp_path = f"/tmp/a2dog_video_{self.local_port}.sdp"
 
     # ---------- 生命周期 ----------
     def start(self):
@@ -118,19 +137,19 @@ class VideoSource:
                     except socket.timeout:
                         continue
                     self.packets += 1
-                    out.sendto(data, ("127.0.0.1", LOCAL_PORT))
+                    out.sendto(data, ("127.0.0.1", self.local_port))
             except OSError as e:
                 log.error("视频接收出错：%s，2 秒后重试", e)
                 time.sleep(2)
 
     def _decode_loop(self):
-        with open(SDP_PATH, "w") as fp:
-            fp.write(_SDP)
+        with open(self.sdp_path, "w") as fp:
+            fp.write(_SDP.format(port=self.local_port))
         os.environ["OPENCV_FFMPEG_CAPTURE_OPTIONS"] = (
             "protocol_whitelist;file,udp,rtp|fflags;nobuffer|reorder_queue_size;0|buffer_size;4000000")
         import cv2
         while self._running:
-            cap = cv2.VideoCapture(SDP_PATH, cv2.CAP_FFMPEG)
+            cap = cv2.VideoCapture(self.sdp_path, cv2.CAP_FFMPEG)
             if not cap.isOpened():
                 log.warning("解码器打开失败，2 秒后重试")
                 time.sleep(2)

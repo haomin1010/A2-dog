@@ -72,11 +72,13 @@ async def amain(args):
     recorder = None if args.no_mic else Recorder(args.mic)
     transcriber = Transcriber(client, config.ASR_MODEL)
 
+    video = None
+    if args.video != "off":
+        from .video import VideoSource
+        video = VideoSource(args.video, args.iface_addr).start()
     dash = None
     if args.dashboard:
         from .dashboard import Dashboard
-        from .video import VideoSource
-        video = None if args.video == "off" else VideoSource(args.video, args.iface_addr).start()
         dash = Dashboard(video)
         await dash.start(args.bind, args.dash_port)
         print(f"演示大屏 http://{args.bind}:{args.dash_port}（视频：{args.video}）")
@@ -89,7 +91,16 @@ async def amain(args):
         sys.exit(f"body 拒绝连接：{e}")
     except (OSError, asyncio.TimeoutError) as e:
         sys.exit(f"连不上 body {args.host}:{args.port}（{e}）。PC2 上的 body 服务启动了吗？网络选对了吗（--net/--host）？")
-    executor = Executor(body, report=report, set_current=dash.set_current if dash else None)
+    from . import vision
+    from .behaviors import Behaviors, FindConfig
+    behaviors = Behaviors(
+        body,
+        grab=(lambda: video.latest()) if video else (lambda: (None, 0)),
+        locate=lambda img, desc: vision.locate(img, desc, model=args.vision_model),
+        report=report, show_boxes=dash.show_boxes if dash else None,
+        quiet=args.quiet, find_cfg=FindConfig(hfov_deg=args.hfov))
+    executor = Executor(body, report=report, set_current=dash.set_current if dash else None,
+                        behaviors=behaviors)
     if dash:
         async def sync_state():
             while True:
@@ -130,6 +141,9 @@ async def amain(args):
         if not steps:
             print("  （没有可执行的动作）")
             return
+        # 自动播报：多步任务或需要看图的任务，先说一声"收到"（单步简单动作不说，免得啰嗦）
+        if len(steps) >= 2 and steps[0][0] not in ("speak",) and not any(n == "find" for n, _ in steps[:1]):
+            await behaviors.announce("收到")
         await executor.start(steps)
         await executor.wait()
 
@@ -180,10 +194,13 @@ def main():
     ap.add_argument("--no-mic", action="store_true")
     ap.add_argument("--dashboard", action="store_true", help="同时启动演示大屏")
     ap.add_argument("--video", default="multicast", choices=["multicast", "relay", "off"],
-                    help="大屏视频来源：multicast=有线直收组播；relay=WiFi 下由 PC2 转发（tools/video_relay.sh）")
+                    help="视频来源（find 和大屏都用）：multicast=有线直收组播；relay=WiFi 下由 PC2 转发；off=不接视频")
     ap.add_argument("--iface-addr", default="192.168.123.222", help="multicast 模式下服务器在 123 网段的地址")
     ap.add_argument("--bind", default="127.0.0.1", help="大屏监听地址")
     ap.add_argument("--dash-port", type=int, default=8080)
+    ap.add_argument("--vision-model", default="qwen3.5-flash", help="find 用的云端视觉模型")
+    ap.add_argument("--hfov", type=float, default=110.0, help="相机水平视场角（度），find 对准时用，待标定")
+    ap.add_argument("--quiet", action="store_true", help="关闭狗的自动播报")
     args = ap.parse_args()
     args.host = args.host or config.NETWORKS[args.net]
     logging.basicConfig(level=logging.WARNING, format="%(asctime)s %(name)s %(levelname)s %(message)s",
