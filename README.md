@@ -3,7 +3,7 @@
 服务器（brain）听语音、调通义大模型规划动作；PC2（body）执行技能、驱动机器狗。
 详见 [docs/architecture.md](docs/architecture.md)，硬件/网络/接口调研见 [docs/system_notes.md](docs/system_notes.md)，
 **真机测试步骤（含接线组网）见 [docs/runbook_phase1.md](docs/runbook_phase1.md)**，
-风险登记见 [docs/risks.md](docs/risks.md)，真机测试中发现的问题见 [docs/known_issues.md](docs/known_issues.md)（⚠ I1 转向过转，未解决前不要测转向）。
+风险登记见 [docs/risks.md](docs/risks.md)，真机测试中发现的问题见 [docs/known_issues.md](docs/known_issues.md)。
 
 > 整体方案（2026-11-22）：狗和服务器都没有 GPU，**理解上云、安全留本地**——视觉也交给云端多模态模型，PC2 只做基础动作和视频转发。
 
